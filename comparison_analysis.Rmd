@@ -1,0 +1,213 @@
+---
+title: "Fall Chinook comparison"
+author: "Michelle A. Briggs"
+date: "2026-09-17"
+editor_options: 
+  chunk_output_type: console
+output:
+  bookdown::html_document2: default
+---
+
+```{r, include = F, echo = F}
+library(rCAX)
+library(tidyverse)
+library(readxl)
+library(lme4)
+library(lmerTest)
+
+
+plot_theme <- readRDS("plot_theme.RDS")
+```
+
+
+```{r, include = F, echo = F}
+#pull and clean data 
+
+snake <- rcax_hli("NOSA", flist = list(popid = c(1, 515, 514)), 
+                cols = c("commonname", 
+                         "run", 
+                         "majorpopgroup", 
+                         "estimatetype", 
+                         "spawningyear", 
+                         "nosaij", 
+                         "nosaej", 
+                         "tsaij", 
+                         "tsaej" 
+                         ))
+head(snake)
+glimpse(snake)
+
+#Hanford Reach and Deschutes River are not in CAX
+table(snake$majorpopgroup)
+
+snake %>%
+  filter(estimatetype == "Escapement") %>%
+  ggplot(aes(x = spawningyear, y = nosaij)) + 
+  geom_line() + 
+  geom_line(aes(y = tsaij), color = "blue")
+
+hanford <- read_xlsx('hanford_deschutes_clean.xlsx', "hanford")
+#does hanford reach adult count include hatchery origin? 
+
+deschutes <- read_xlsx('hanford_deschutes_clean.xlsx', "deschutes")  
+#Deschutes data also found here: https://www.streamnet.org/data/trends/trend/?trendid=50924#/
+
+hanford %>%
+  ggplot(aes(x = year, y = adults)) + 
+  geom_line(linewidth = 1) + 
+  plot_theme
+
+deschutes %>%
+  ggplot(aes(x = year, y = escapement)) + 
+  geom_line() + 
+  geom_line(aes(y = run_to_river), color = "blue")
+
+snake_clean <- snake %>%
+  filter(estimatetype == "Escapement") %>%
+  select(spawningyear, nosaej) %>%
+  rename(year = spawningyear, 
+         total = nosaej) %>%
+  mutate(pop = "snake")
+
+deschutes_clean <- deschutes %>%
+  select(year, escapement) %>%
+  rename(total = escapement) %>%
+  mutate(pop = "deschutes")
+
+hanford_clean <- hanford %>%
+  select(year, adults) %>%
+  rename(total = adults) %>%
+  mutate(pop = "hanford")
+
+comp <- rbind(snake_clean, deschutes_clean, hanford_clean)
+
+comp <- comp %>%
+  group_by(pop) %>%
+  mutate(zscore = scale(total))
+
+timeseries_plot<- ggplot(comp, aes(x = year, y = total, group = pop)) + 
+  geom_line(linewidth = 1.2, aes(color = pop)) + 
+  plot_theme + 
+  scale_y_continuous(limits = c(0, 250000), expand = c(0, 0)) + 
+  scale_x_continuous(limits = c(1975, 2025), expand = c(0, 0)) + 
+  ylab("NOSAej") + 
+  scale_color_brewer(palette = "Dark2", labels = c("Deschutes", "Hanford", "Snake"), 
+                     name = "Population") + 
+  xlab("Year")
+
+centered_plot <- ggplot(comp, aes(x = year, y = zscore, group = pop)) + 
+  geom_line(linewidth = 1.2, aes(color = pop)) + 
+  plot_theme + 
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 1) + 
+  scale_y_continuous(limits = c(-2, 5), expand = c(0, 0)) + 
+  scale_x_continuous(limits = c(1975, 2025), expand = c(0, 0)) +
+  scale_color_brewer(palette = "Dark2", labels = c("Deschutes", "Hanford", "Snake"), 
+                     name = "Population") + 
+  xlab("Year") + 
+  ylab("Z-score NOSAej")
+
+log_plot <- ggplot(comp, aes(x = year, y = log(total), group = pop)) + 
+  geom_line(linewidth = 1.2, aes(color = pop)) + 
+  plot_theme + 
+  scale_y_continuous(expand = c(0, 0), limits = c(4, 14)) + 
+  scale_x_continuous(limits = c(1975, 2025), expand = c(0, 0)) + 
+  ylab("log(NOSAej)") + 
+  scale_color_brewer(palette = "Dark2", labels = c("Deschutes", "Hanford", "Snake"), 
+                     name = "Population") + 
+  xlab("Year")
+```
+
+
+```{r, include = F, echo = F}
+#preliminary LMM and LM
+
+#assign before and after supplementation periods
+lmm_dat <- comp %>%
+  mutate(time = if_else(year >= 1977 & year <= 1995, "pre", 
+                       if_else(year >= 2000 & year <= 2025, "post", NA))) %>%
+  filter(!(is.na(time)))
+
+#population x time interaction with population as a random effect
+#not quite a BACI analysis because all 3 populations are assessed separately
+#consider assigning Deschutes and Hanford both as "control"
+
+lmm_fit <- lmer(log(total) ~ pop*time + (1|pop), data = lmm_dat)
+lm_fit <- lm(log(total) ~ pop*time, data = lmm_dat)
+
+zscore_boxplot <- ggplot(lmm_dat, aes(x = pop, y = zscore, fill = time)) + 
+  geom_boxplot(aes(fill = time)) + 
+  plot_theme + 
+  ylab("Z-score NOSAej") + 
+  xlab("Population") + 
+  scale_y_continuous(expand = c(0, 0), limits = c(-2, 5)) + 
+  scale_fill_brewer(palette = "Dark2", labels = c("post" = "Post (2000 - 2025)", "pre" ="Pre (1977 - 1995)"), 
+                    name = "Time period") + 
+  scale_x_discrete(labels = c("Deschutes", "Hanford", "Snake")) + 
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 1)
+
+log_boxplot <- ggplot(lmm_dat, aes(x = pop, y = log(total), fill = time)) + 
+  geom_boxplot(aes(fill = time)) + 
+  plot_theme + 
+  ylab("log(NOSAej)") + 
+  xlab("Population") + 
+  scale_y_continuous(limits = c(4, 14), expand = c(0, 0)) + 
+  scale_fill_brewer(palette = "Dark2", labels = c("post" = "Post (2000 - 2025)", "pre" ="Pre (1977 - 1995)"), 
+                    name = "Time period") + 
+  scale_x_discrete(labels = c("Deschutes", "Hanford", "Snake"))
+```
+
+
+```{r, include = F, echo = F}
+
+#year x population x time period interaction
+#assesses whether the average abundance has shifted (pop x period) and also whether the trend has shifted
+lm_trend <- lm(log(total) ~ year*pop*time, data = lmm_dat)
+summary(lm_trend)
+
+lmm_trend <- lmer(log(total) ~ year*pop*time + (1|pop), data = lmm_dat)
+summary(lmm_trend)
+
+
+#BACI trend figure
+
+trend_plot <- ggplot(lmm_dat, aes(x = year, y = log(total), fill = pop, shape = time)) +
+  geom_point(size = 3, color = "black") + 
+  plot_theme + 
+  #geom_vline(xintercept = 1995) + 
+  geom_smooth(method = "lm", aes(color = pop)) + 
+  scale_y_continuous(limits = c(4, 14), expand = c(0, 0)) + 
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_shape_manual(values = c(21, 24), 
+                     labels = c("post" = "Post (2000 - 2025)", "pre" ="Pre (1977 - 1995)"), 
+                     name = ("Period")) + 
+  scale_fill_brewer(palette = "Dark2", labels = c("Deschutes", "Hanford", "Snake"), 
+                    name = "Population") +
+  scale_color_brewer(palette = "Dark2", labels = c("Deschutes", "Hanford", "Snake"), 
+                     name = "Population") +
+  ylab("log(NOSAej)") + 
+  xlab("Year")
+
+```
+
+
+```{r, echo = F, fig.width = 12, fig.cap="Estimates of natural origin spawner abundance excluding jacks (NOSAej) for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River." }
+timeseries_plot
+```
+
+
+```{r, echo = F, fig.width = 12, fig.cap = "Standardized (z-score) estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
+centered_plot
+```
+
+```{r, echo = F, fig.width = 9, fig.cap = "Natural-log transformed estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
+log_plot
+```
+
+```{r, echo = F, fig.cap = "Natural-log transformed estimates of NOSAej for three populations of fall-run Chinook salmon in the Columbia River basin by time period. The pre time period (1977 - 1995) encompasses years prior to the fall Chinook supplementation program in the Snake River and the post time period (2000 - 2025) encompasses years after the supplementation program was established. From 1996 - 1999 were excluded from analysis, because the supplementation program had been initiated but effects on adult returns would not be evident for four to five years." }
+log_boxplot
+```
+
+```{r, echo = F, warning = F, fig.width = 12, fig.cap = "Natural-log transformed estimates of NOSAej for three populations of fall-run Chinook salmon in the Columbia River basin by time period. The lines indicate linear model fits and the shaded bands indicate 95% confidence intervals around the model fits. The pre time period (1977 - 1995) encompasses years prior to the fall Chinook supplementation program in the Snake River and the post time period (2000 - 2025) encompasses years after the supplementation program was established. From 1996 - 1999 were excluded from analysis, because the supplementation program had been initiated but effects on adult returns would not be evident for four to five years."}
+trend_plot
+```
+

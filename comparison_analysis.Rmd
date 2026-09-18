@@ -225,16 +225,16 @@ trend_plot <- ggplot(lmm_dat, aes(x = year, y = log(total), fill = pop, shape = 
 
 We compared returns of fall-run Chinook salmon (*Oncorhynchus tshawytscha*) for three populations in the Columbia River basin: the Snake River, the Hanford Reach of the Columbia River (located downstream of Priest Rapids Dam), and the Deschutes River. The time series of return estimates spanned from 1977 - 2025 for all three populations. The objective was to evaluate if the Snake River supplementation program, initiated in 1996, resulted in changes to the abundance of natural origin spawners. We compared the abundance of natural origin, adult spawners (excluding jacks, hereafter NOSAej). Escapement was estimated to Lower Granite Dam for the Snake River population, to the entire Hanford Reach for the Hanford population, and to the entire Deschutes River for the Deschutes population. (*Note: I need to confirm that the Hanford dataset includes only natural origin spawners and that the Deschutes dataset includes only adults. I also need to confirm that the SR fall Chinook hatchery program started in 1996.*)
 
-```{r, echo = F, fig.width = 12, fig.cap="Estimates of natural origin spawner abundance excluding jacks (NOSAej) for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River." }
+```{r, echo = F, warning = F, fig.width = 12, fig.cap="Estimates of natural origin spawner abundance excluding jacks (NOSAej) for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River." }
 timeseries_plot
 ```
 
 
-```{r, echo = F, fig.width = 12, fig.cap = "Standardized (z-score) estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
+```{r, echo = F, warning = F, fig.width = 12, fig.cap = "Standardized (z-score) estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
 centered_plot
 ```
 
-```{r, echo = F, fig.width = 9, fig.cap = "Natural-log transformed estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
+```{r, echo = F, warning = F, fig.width = 9, fig.cap = "Natural-log transformed estimates of NOSAej for fall-run Chinook salmon in the Deschutes River, the Hanford Reach of the Columbia River, and the Snake River."}
 log_plot
 ```
 
